@@ -1,6 +1,5 @@
 import streamlit as st
 import subprocess
-import time
 import re
 from collections import Counter
 
@@ -10,6 +9,24 @@ st.title("🛡️ SSH Güvenlik Dashboard")
 # Otomatik yenileme düğmesi
 st.sidebar.header("🧰 Kontroller")
 refresh = st.sidebar.button("🔄 Verileri Yenile")
+
+# Manuel IP Kara Liste Ekleme
+st.markdown("### ⛔ Manuel IP Kara Liste Ekle")
+ip_to_block = st.text_input("Engellenecek IP adresini girin:")
+if st.button("🚫 Kara Listeye Ekle"):
+    if ip_to_block:
+        try:
+            result = subprocess.check_output(
+                f"sudo /home/sistemodev/SSH-Koruma/iptables/ip_rule.sh {ip_to_block} block",
+                shell=True,
+                stderr=subprocess.STDOUT,
+            ).decode()
+            st.success(f"✅ {ip_to_block} kara listeye eklendi.")
+            st.text(result)
+        except subprocess.CalledProcessError as e:
+            st.error(f"❌ Hata oluştu:\n{e.output.decode()}")
+    else:
+        st.warning("⚠️ Lütfen bir IP adresi girin.")
 
 
 # Engellenen IP'ler
@@ -24,7 +41,7 @@ def get_banned_ips():
         return [f"Hata: {str(e)}"]
 
 
-st.subheader("🚫 Engellenen IP'ler")
+st.subheader("🚫 Fail2Ban Tarafından Engellenen IP'ler")
 if refresh:
     banned_ips = get_banned_ips()
     st.code("\n".join(banned_ips) if banned_ips else "Şu anda engellenmiş IP yok.")
@@ -40,7 +57,7 @@ if refresh:
     st.text(get_active_sessions())
 
 
-# SSH giriş denemelerini çek
+# Sadece sshd logları içinden giriş denemelerini al
 @st.cache_data(ttl=30)
 def get_ssh_login_attempts():
     return subprocess.getoutput(
@@ -48,7 +65,7 @@ def get_ssh_login_attempts():
     )
 
 
-# Loglardan istatistik çıkar
+# Başarılı/başarısız istatistik
 def get_login_stats(log_data):
     success = len(re.findall(r"Accepted password", log_data))
     failed = len(re.findall(r"Failed password", log_data))
@@ -60,25 +77,25 @@ def extract_ips(log_data):
     return re.findall(r"from ([\d.]+)", log_data)
 
 
-# Log analizleri
+# Giriş istatistikleri vs.
 if refresh:
     raw_logs = get_ssh_login_attempts()
 
-    # İstatistikler
+    # Başarılı/başarısız
     success_count, failed_count = get_login_stats(raw_logs)
     st.markdown("### 📊 Giriş İstatistikleri")
     col1, col2 = st.columns(2)
     col1.metric("✅ Başarılı Giriş", success_count)
     col2.metric("❌ Başarısız Giriş", failed_count)
 
-    # En çok deneyen IP'ler
+    # En çok deneme yapan IP'ler
     ip_counts = Counter(extract_ips(raw_logs))
     if ip_counts:
         st.markdown("### 🧠 En Çok Giriş Denemesi Yapan IP’ler")
         for ip, count in ip_counts.most_common(5):
             st.write(f"🔹 `{ip}` → {count} kez")
 
-    # Fail2Ban durum bilgisi
+    # Fail2Ban durumu
     st.markdown("### 🟢 Fail2Ban Servis Durumu")
     service_status = subprocess.getoutput("systemctl is-active fail2ban")
     if service_status.strip() == "active":
@@ -92,7 +109,7 @@ if refresh:
 # SSH giriş denemeleri
 if refresh:
     st.markdown("---")
-    st.subheader("🔐 SSH Giriş Denemeleri (Başarılı / Başarısız)")
+    st.subheader("🔐 SSH Giriş Denemeleri (Sadece sshd logları)")
     st.text(raw_logs)
 else:
     st.info("🔄 Logları görmek için soldan 'Verileri Yenile' butonuna bas.")
