@@ -4,7 +4,12 @@ import subprocess
 st.set_page_config(page_title="SSH Güvenlik Paneli", layout="wide")
 st.title("🛡️ SSH Güvenlik Dashboard")
 
+# Otomatik yenileme düğmesi
+st.sidebar.header("🧰 Kontroller")
+refresh = st.sidebar.button("🔄 Verileri Yenile")
 
+
+# Engellenen IP'ler
 def get_banned_ips():
     try:
         result = subprocess.check_output(
@@ -17,15 +22,31 @@ def get_banned_ips():
 
 
 st.subheader("🚫 Engellenen IP'ler")
-banned_ips = get_banned_ips()
-st.code("\n".join(banned_ips) if banned_ips else "Şu anda engellenmiş IP yok.")
+if refresh:
+    banned_ips = get_banned_ips()
+    st.code("\n".join(banned_ips) if banned_ips else "Şu anda engellenmiş IP yok.")
+
+
+# Aktif SSH oturumları
+def get_active_sessions():
+    return subprocess.getoutput("who | grep 'pts/' || echo 'Aktif SSH oturumu yok'")
+
 
 st.subheader("🧑‍💻 Aktif SSH Oturumları")
-ssh_sessions = subprocess.getoutput("who | grep 'pts/' || echo 'Aktif SSH oturumu yok'")
-st.text(ssh_sessions)
+if refresh:
+    st.text(get_active_sessions())
+
+
+# Brute-force denemeleri
+@st.cache_data(ttl=30)
+def get_failed_logins():
+    return subprocess.getoutput(
+        "sudo grep 'Failed password' /var/log/auth.log | tail -n 20"
+    )
+
 
 st.subheader("🔐 SSH Brute-Force Girişim Kayıtları")
-failed_logins = subprocess.getoutput(
-    "sudo grep 'Failed password' /var/log/auth.log | tail -n 20"
-)
-st.text(failed_logins)
+if refresh:
+    st.text(get_failed_logins())
+else:
+    st.info("🔄 Yenile düğmesine basarak verileri güncelleyebilirsin.")
