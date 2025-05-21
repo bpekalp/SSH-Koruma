@@ -16,13 +16,27 @@ if ! [[ $IP =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
 fi
 
 # Engel veya İzin verme
-if [ "$ACTION" == "block" ]; then
-    sudo iptables -A INPUT -s "$IP" -j DROP
-    echo "$IP engellendi (DROP eklendi)"
-elif [ "$ACTION" == "allow" ]; then
-    sudo iptables -D INPUT -s "$IP" -j DROP
-    echo "$IP engeli kaldırıldı (DROP silindi)"
-else
-    echo "Geçersiz işlem: $ACTION (block ya da allow olmalı)"
-    exit 3
-fi
+case "$ACTION" in
+    block)
+        # Daha önce aynı kural var mı kontrol et
+        if sudo iptables -C INPUT -s "$IP" -j DROP 2>/dev/null; then
+            echo "$IP zaten engellenmiş."
+        else
+            sudo iptables -A INPUT -s "$IP" -j DROP
+            echo "$IP engellendi."
+        fi
+        ;;
+    allow)
+        # DROP kuralı varsa sil
+        if sudo iptables -C INPUT -s "$IP" -j DROP 2>/dev/null; then
+            sudo iptables -D INPUT -s "$IP" -j DROP
+            echo "$IP engeli kaldırıldı."
+        else
+            echo "$IP için engel bulunamadı."
+        fi
+        ;;
+    *)
+        echo "Geçersiz işlem: $ACTION (block veya allow olmalı)"
+        exit 3
+        ;;
+esac
