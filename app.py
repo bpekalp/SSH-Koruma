@@ -10,7 +10,7 @@ st.title("🛡️ SSH Güvenlik Dashboard")
 st.sidebar.header("🧰 Kontroller")
 refresh = st.sidebar.button("🔄 Verileri Yenile")
 
-# Manuel IP Kara Liste Ekleme
+# Manuel IP Kara Listeye Ekle (ip_rule.sh ile entegre)
 st.markdown("### ⛔ Manuel IP Kara Liste Ekle")
 ip_to_block = st.text_input("Engellenecek IP adresini girin:")
 if st.button("🚫 Kara Listeye Ekle"):
@@ -47,24 +47,53 @@ if refresh:
     st.code("\n".join(banned_ips) if banned_ips else "Şu anda engellenmiş IP yok.")
 
 
-# Manuel iptables engellemelerini al
+# iptables'dan manuel engellenmiş IP'leri al
 def get_manual_blocked_ips():
     try:
         result = subprocess.check_output(
             "sudo iptables -S | grep 'DROP'", shell=True
         ).decode()
-        ips = re.findall(r"-s ([\d.]+)", result)
-        return sorted(set(ips))
+        lines = result.strip().split("\n")
+        ip_entries = []
+        for line in lines:
+            match = re.search(r"-s ([\d.]+)", line)
+            if match:
+                ip = match.group(1)
+                ip_entries.append(ip)
+        return sorted(set(ip_entries))
     except Exception as e:
-        return [f"Hata: {str(e)}"]
+        return []
 
 
+# ip_rule.sh ile IP engel kaldırma
+def unblock_ip(ip):
+    try:
+        subprocess.check_output(
+            f"sudo /home/sistemodev/SSH-Koruma/iptables/ip_rule.sh {ip} allow",
+            shell=True,
+            stderr=subprocess.STDOUT,
+        )
+        return True
+    except subprocess.CalledProcessError:
+        return False
+
+
+# Manuel engellenen IP'leri listele ve kaldır
 st.subheader("🛡️ Manuel Olarak Engellenen IP'ler (iptables)")
-if refresh:
-    manual_ips = get_manual_blocked_ips()
-    st.code(
-        "\n".join(manual_ips) if manual_ips else "Şu anda manuel engellenmiş IP yok."
-    )
+manual_blocked_ips = get_manual_blocked_ips()
+if manual_blocked_ips:
+    for ip in manual_blocked_ips:
+        col1, col2 = st.columns([4, 1])
+        col1.code(ip)
+        if col2.button(f"❌ Kaldır", key=f"unblock_{ip}"):
+            success = unblock_ip(ip)
+            if success:
+                st.success(f"{ip} engeli kaldırıldı.")
+                st.experimental_rerun()
+            else:
+                st.error(f"{ip} engeli kaldırılamadı.")
+else:
+    st.info("Şu anda manuel olarak engellenmiş IP yok.")
 
 
 # Aktif SSH oturumları
@@ -77,7 +106,7 @@ if refresh:
     st.text(get_active_sessions())
 
 
-# SSH giriş denemelerini oku
+# SSH giriş denemeleri
 @st.cache_data(ttl=30)
 def get_ssh_login_attempts():
     return subprocess.getoutput(
@@ -85,19 +114,19 @@ def get_ssh_login_attempts():
     )
 
 
-# Başarılı/başarısız istatistik
+# Giriş istatistikleri
 def get_login_stats(log_data):
     success = len(re.findall(r"Accepted password", log_data))
     failed = len(re.findall(r"Failed password", log_data))
     return success, failed
 
 
-# IP adreslerini çıkar
+# IP’leri çıkart
 def extract_ips(log_data):
     return re.findall(r"from ([\d.]+)", log_data)
 
 
-# Giriş istatistikleri vs.
+# Giriş verileri
 if refresh:
     raw_logs = get_ssh_login_attempts()
 
