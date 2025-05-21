@@ -29,7 +29,7 @@ if st.button("🚫 Kara Listeye Ekle"):
         st.warning("⚠️ Lütfen bir IP adresi girin.")
 
 
-# Engellenen IP'ler
+# Fail2Ban tarafından engellenen IP'leri al
 def get_banned_ips():
     try:
         result = subprocess.check_output(
@@ -47,6 +47,26 @@ if refresh:
     st.code("\n".join(banned_ips) if banned_ips else "Şu anda engellenmiş IP yok.")
 
 
+# Manuel iptables engellemelerini al
+def get_manual_blocked_ips():
+    try:
+        result = subprocess.check_output(
+            "sudo iptables -S | grep 'DROP'", shell=True
+        ).decode()
+        ips = re.findall(r"-s ([\d.]+)", result)
+        return sorted(set(ips))
+    except Exception as e:
+        return [f"Hata: {str(e)}"]
+
+
+st.subheader("🛡️ Manuel Olarak Engellenen IP'ler (iptables)")
+if refresh:
+    manual_ips = get_manual_blocked_ips()
+    st.code(
+        "\n".join(manual_ips) if manual_ips else "Şu anda manuel engellenmiş IP yok."
+    )
+
+
 # Aktif SSH oturumları
 def get_active_sessions():
     return subprocess.getoutput("who | grep 'pts/' || echo 'Aktif SSH oturumu yok'")
@@ -57,7 +77,7 @@ if refresh:
     st.text(get_active_sessions())
 
 
-# Sadece sshd logları içinden giriş denemelerini al
+# SSH giriş denemelerini oku
 @st.cache_data(ttl=30)
 def get_ssh_login_attempts():
     return subprocess.getoutput(
@@ -81,7 +101,7 @@ def extract_ips(log_data):
 if refresh:
     raw_logs = get_ssh_login_attempts()
 
-    # Başarılı/başarısız
+    # Giriş istatistikleri
     success_count, failed_count = get_login_stats(raw_logs)
     st.markdown("### 📊 Giriş İstatistikleri")
     col1, col2 = st.columns(2)
@@ -95,7 +115,7 @@ if refresh:
         for ip, count in ip_counts.most_common(5):
             st.write(f"🔹 `{ip}` → {count} kez")
 
-    # Fail2Ban durumu
+    # Fail2Ban servis durumu
     st.markdown("### 🟢 Fail2Ban Servis Durumu")
     service_status = subprocess.getoutput("systemctl is-active fail2ban")
     if service_status.strip() == "active":
@@ -106,7 +126,7 @@ if refresh:
     # Log indir
     st.download_button("📥 auth.log indir", data=raw_logs, file_name="auth_excerpt.log")
 
-# SSH giriş denemeleri
+# SSH loglarını göster
 if refresh:
     st.markdown("---")
     st.subheader("🔐 SSH Giriş Denemeleri (Sadece sshd logları)")
