@@ -44,7 +44,7 @@ if refresh:
 @st.cache_data(ttl=30)
 def get_ssh_login_attempts():
     return subprocess.getoutput(
-        "sudo cat /var/log/auth.log | grep -E 'Failed password|Accepted password' | tail -n 100"
+        "sudo grep -E 'sshd.*(Failed password|Accepted password)' /var/log/auth.log | tail -n 100"
     )
 
 
@@ -60,7 +60,7 @@ def extract_ips(log_data):
     return re.findall(r"from ([\d.]+)", log_data)
 
 
-# Analizleri ve diğer her şeyi yukarıda göster
+# Log analizleri
 if refresh:
     raw_logs = get_ssh_login_attempts()
 
@@ -89,7 +89,7 @@ if refresh:
     # Log indir
     st.download_button("📥 auth.log indir", data=raw_logs, file_name="auth_excerpt.log")
 
-# En alta SSH giriş denemelerini koy
+# SSH giriş denemeleri
 if refresh:
     st.markdown("---")
     st.subheader("🔐 SSH Giriş Denemeleri (Başarılı / Başarısız)")
