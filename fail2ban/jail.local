@@ -1,0 +1,8 @@
+[sshd]
+enabled = true
+port = ssh
+logpath = /var/log/auth.log
+maxretry = 3
+findtime = 300        # 5 dakika
+bantime = 600         # 10 dakika
+action = iptables[name=SSH, port=ssh, protocol=tcp]
