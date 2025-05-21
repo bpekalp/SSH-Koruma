@@ -1,5 +1,8 @@
 import streamlit as st
 import subprocess
+import time
+import re
+from collections import Counter
 
 st.set_page_config(page_title="SSH Güvenlik Paneli", layout="wide")
 st.title("🛡️ SSH Güvenlik Dashboard")
@@ -41,12 +44,51 @@ if refresh:
 @st.cache_data(ttl=30)
 def get_ssh_login_attempts():
     return subprocess.getoutput(
-        "sudo grep -E 'Failed password|Accepted password' /var/log/auth.log | tail -n 20"
+        "sudo cat /var/log/auth.log | grep -E 'Failed password|Accepted password' | tail -n 50"
     )
 
 
 st.subheader("🔐 SSH Giriş Denemeleri (Başarılı / Başarısız)")
 if refresh:
-    st.text(get_ssh_login_attempts())
+    raw_logs = get_ssh_login_attempts()
+    st.text(raw_logs)
 else:
     st.info("🔄 Logları görmek için soldan 'Verileri Yenile' butonuna bas.")
+
+
+# Loglardan analiz çıkar
+def get_login_stats(log_data):
+    success = len(re.findall(r"Accepted password", log_data))
+    failed = len(re.findall(r"Failed password", log_data))
+    return success, failed
+
+
+def extract_ips(log_data):
+    return re.findall(r"from ([\d.]+)", log_data)
+
+
+if refresh:
+    # Giriş istatistikleri
+    success_count, failed_count = get_login_stats(raw_logs)
+    st.markdown("### 📊 Giriş İstatistikleri")
+    col1, col2 = st.columns(2)
+    col1.metric("✅ Başarılı Giriş", success_count)
+    col2.metric("❌ Başarısız Giriş", failed_count)
+
+    # En çok IP'ler
+    ip_counts = Counter(extract_ips(raw_logs))
+    if ip_counts:
+        st.markdown("### 🧠 En Çok Giriş Denemesi Yapan IP’ler")
+        for ip, count in ip_counts.most_common(5):
+            st.write(f"🔹 `{ip}` → {count} kez")
+
+    # Fail2Ban servis durumu
+    st.markdown("### 🟢 Fail2Ban Servis Durumu")
+    service_status = subprocess.getoutput("systemctl is-active fail2ban")
+    if service_status.strip() == "active":
+        st.success("Fail2Ban çalışıyor ✅")
+    else:
+        st.error("Fail2Ban aktif değil! ❌")
+
+    # Log indirme
+    st.download_button("📥 auth.log indir", data=raw_logs, file_name="auth_excerpt.log")
