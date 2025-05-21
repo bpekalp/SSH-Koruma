@@ -1,0 +1,1 @@
+*/10 * * * * bash /home/sistemodev/SSH-Koruma/ip_logger/ip_logger.sh
