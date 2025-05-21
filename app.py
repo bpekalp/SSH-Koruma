@@ -37,16 +37,16 @@ if refresh:
     st.text(get_active_sessions())
 
 
-# Brute-force denemeleri
+# Sadece SSH giriş denemeleri (başarılı ve başarısız)
 @st.cache_data(ttl=30)
-def get_failed_logins():
+def get_ssh_login_attempts():
     return subprocess.getoutput(
-        "sudo grep 'Failed password' /var/log/auth.log | tail -n 20"
+        "sudo grep -E 'Failed password|Accepted password' /var/log/auth.log | tail -n 20"
     )
 
 
-st.subheader("🔐 SSH Brute-Force Girişim Kayıtları")
+st.subheader("🔐 SSH Giriş Denemeleri (Başarılı / Başarısız)")
 if refresh:
-    st.text(get_failed_logins())
+    st.text(get_ssh_login_attempts())
 else:
-    st.info("🔄 Yenile düğmesine basarak verileri güncelleyebilirsin.")
+    st.info("🔄 Logları görmek için soldan 'Verileri Yenile' butonuna bas.")
