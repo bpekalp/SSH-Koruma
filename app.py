@@ -40,49 +40,45 @@ if refresh:
     st.text(get_active_sessions())
 
 
-# Sadece SSH giriş denemeleri (başarılı ve başarısız)
+# SSH giriş denemelerini çek
 @st.cache_data(ttl=30)
 def get_ssh_login_attempts():
     return subprocess.getoutput(
-        "sudo cat /var/log/auth.log | grep -E 'Failed password|Accepted password' | tail -n 50"
+        "sudo cat /var/log/auth.log | grep -E 'Failed password|Accepted password' | tail -n 100"
     )
 
 
-st.subheader("🔐 SSH Giriş Denemeleri (Başarılı / Başarısız)")
-if refresh:
-    raw_logs = get_ssh_login_attempts()
-    st.text(raw_logs)
-else:
-    st.info("🔄 Logları görmek için soldan 'Verileri Yenile' butonuna bas.")
-
-
-# Loglardan analiz çıkar
+# Loglardan istatistik çıkar
 def get_login_stats(log_data):
     success = len(re.findall(r"Accepted password", log_data))
     failed = len(re.findall(r"Failed password", log_data))
     return success, failed
 
 
+# IP adreslerini çıkar
 def extract_ips(log_data):
     return re.findall(r"from ([\d.]+)", log_data)
 
 
+# Analizleri ve diğer her şeyi yukarıda göster
 if refresh:
-    # Giriş istatistikleri
+    raw_logs = get_ssh_login_attempts()
+
+    # İstatistikler
     success_count, failed_count = get_login_stats(raw_logs)
     st.markdown("### 📊 Giriş İstatistikleri")
     col1, col2 = st.columns(2)
     col1.metric("✅ Başarılı Giriş", success_count)
     col2.metric("❌ Başarısız Giriş", failed_count)
 
-    # En çok IP'ler
+    # En çok deneyen IP'ler
     ip_counts = Counter(extract_ips(raw_logs))
     if ip_counts:
         st.markdown("### 🧠 En Çok Giriş Denemesi Yapan IP’ler")
         for ip, count in ip_counts.most_common(5):
             st.write(f"🔹 `{ip}` → {count} kez")
 
-    # Fail2Ban servis durumu
+    # Fail2Ban durum bilgisi
     st.markdown("### 🟢 Fail2Ban Servis Durumu")
     service_status = subprocess.getoutput("systemctl is-active fail2ban")
     if service_status.strip() == "active":
@@ -90,5 +86,13 @@ if refresh:
     else:
         st.error("Fail2Ban aktif değil! ❌")
 
-    # Log indirme
+    # Log indir
     st.download_button("📥 auth.log indir", data=raw_logs, file_name="auth_excerpt.log")
+
+# En alta SSH giriş denemelerini koy
+if refresh:
+    st.markdown("---")
+    st.subheader("🔐 SSH Giriş Denemeleri (Başarılı / Başarısız)")
+    st.text(raw_logs)
+else:
+    st.info("🔄 Logları görmek için soldan 'Verileri Yenile' butonuna bas.")
