@@ -152,7 +152,7 @@ if manual_ips:
         if col2.button(f"❌ Kaldır", key=f"unblock_{ip}"):
             if unblock_ip(ip):
                 st.success(f"{ip} engeli kaldırıldı.")
-                st.experimental_rerun()
+                st.rerun()
             else:
                 st.error(f"{ip} engeli kaldırılamadı.")
 else:
